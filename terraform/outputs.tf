@@ -42,3 +42,13 @@ output "backend_url" {
   description = "Backend URL"
   value       = module.dns.backend_url
 }
+
+output "kops_state_bucket" {
+  description = "Kops state store bucket name"
+  value       = module.s3.kops_state_bucket
+}
+
+output "etcd_backup_bucket" {
+  description = "etcd backup bucket name"
+  value       = module.s3.etcd_backup_bucket
+}

@@ -43,3 +43,10 @@ module "dns" {
   domain_name = var.domain_name
   project_name = var.project_name
 }
+
+module "s3" {
+  source         = "./modules/s3"
+  project_name   = var.project_name
+  aws_account_id = "311156639915"
+  aws_region     = var.aws_region
+}
