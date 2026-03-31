@@ -1,0 +1,20 @@
+# Terraform
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock.info
+.terraform/
+.terraform.lock.hcl
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+
+# Secrets
+*.pem
+*.key
+kubeconfig
+secrets/
+
+# OS
+.DS_Store
+*.swp
