@@ -1,0 +1,195 @@
+apiVersion: kops.k8s.io/v1alpha2
+kind: Cluster
+metadata:
+  name: taskapp.name.ng
+spec:
+  kubernetesVersion: 1.28.0
+  configBase: s3://taskapp-kops-state-311156639915-us-east-1/taskapp.name.ng
+  cloudProvider: aws
+
+  # Network configuration
+  networkID: vpc-0b6666076f2ea9034
+  networkCIDR: 10.0.0.0/16
+  nonMasqueradeCIDR: 100.64.0.0/10
+
+  # Private topology — nodes have no public IPs
+  topology:
+    masters: private
+    nodes: private
+    dns:
+      type: Public
+
+  # Calico CNI for NetworkPolicy support
+  networking:
+    calico: {}
+
+  # Public API load balancer — accessible from your laptop
+  api:
+    loadBalancer:
+      type: Public
+
+  # DNS
+  dnsZone: taskapp.name.ng
+
+  # SSH access
+  sshAccess:
+  - 0.0.0.0/0
+
+  # Kubernetes API access
+  kubernetesApiAccess:
+  - 0.0.0.0/0
+
+  # Subnets — public and private across 3 AZs
+  # egress tells Kops which NAT Gateway handles
+  # outbound traffic for each private subnet
+  subnets:
+  - name: us-east-1a-public
+    type: Public
+    zone: us-east-1a
+    id: subnet-0dca951c39d6ce6c5
+
+  - name: us-east-1b-public
+    type: Public
+    zone: us-east-1b
+    id: subnet-07a40f0ec57c0dc9a
+
+  - name: us-east-1c-public
+    type: Public
+    zone: us-east-1c
+    id: subnet-01db2add7dfe4fcf9
+
+  - name: us-east-1a-private
+    type: Private
+    zone: us-east-1a
+    id: subnet-04a9924012a323d8a
+    egress: nat-067a646ecdb7586ed
+
+  - name: us-east-1b-private
+    type: Private
+    zone: us-east-1b
+    id: subnet-008122beddcda3097
+    egress: nat-01f3ce82442762d24
+
+  - name: us-east-1c-private
+    type: Private
+    zone: us-east-1c
+    id: subnet-060bfd8ff4b4d15c7
+    egress: nat-0bbc9ba52d35865e1
+
+  # etcd configuration with S3 backups
+  etcdClusters:
+  - name: main
+    etcdMembers:
+    - name: us-east-1a
+      instanceGroup: master-us-east-1a
+    - name: us-east-1b
+      instanceGroup: master-us-east-1b
+    - name: us-east-1c
+      instanceGroup: master-us-east-1c
+    backups:
+      backupStore: s3://taskapp-etcd-backup-311156639915-us-east-1/taskapp.name.ng/etcd-main
+
+  - name: events
+    etcdMembers:
+    - name: us-east-1a
+      instanceGroup: master-us-east-1a
+    - name: us-east-1b
+      instanceGroup: master-us-east-1b
+    - name: us-east-1c
+      instanceGroup: master-us-east-1c
+    backups:
+      backupStore: s3://taskapp-etcd-backup-311156639915-us-east-1/taskapp.name.ng/etcd-events
+
+  # IAM — modern approach without legacy mode
+  iam:
+    allowContainerRegistry: true
+    legacy: false
+    useServiceAccountExternalPermissions: false
+
+  # Disable anonymous auth — security best practice
+  kubelet:
+    anonymousAuth: false
+
+  # EBS CSI driver for persistent storage
+  cloudConfig:
+    awsEBSCSIDriver:
+      enabled: true
+      version: v1.24.0
+
+  # Cluster autoscaler
+  clusterAutoscaler:
+    enabled: true
+
+---
+# Master node — us-east-1a
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  name: master-us-east-1a
+  labels:
+    kops.k8s.io/cluster: taskapp.name.ng
+spec:
+  role: Master
+  machineType: t3.small
+  minSize: 1
+  maxSize: 1
+  subnets:
+  - us-east-1a-private
+  nodeLabels:
+    kops.k8s.io/instancegroup: master-us-east-1a
+
+---
+# Master node — us-east-1b
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  name: master-us-east-1b
+  labels:
+    kops.k8s.io/cluster: taskapp.name.ng
+spec:
+  role: Master
+  machineType: t3.small
+  minSize: 1
+  maxSize: 1
+  subnets:
+  - us-east-1b-private
+  nodeLabels:
+    kops.k8s.io/instancegroup: master-us-east-1b
+
+---
+# Master node — us-east-1c
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  name: master-us-east-1c
+  labels:
+    kops.k8s.io/cluster: taskapp.name.ng
+spec:
+  role: Master
+  machineType: t3.small
+  minSize: 1
+  maxSize: 1
+  subnets:
+  - us-east-1c-private
+  nodeLabels:
+    kops.k8s.io/instancegroup: master-us-east-1c
+
+---
+# Worker nodes — spread across all 3 AZs
+apiVersion: kops.k8s.io/v1alpha2
+kind: InstanceGroup
+metadata:
+  name: nodes
+  labels:
+    kops.k8s.io/cluster: taskapp.name.ng
+spec:
+  role: Node
+  machineType: t3.micro
+  minSize: 3
+  maxSize: 6
+  subnets:
+  - us-east-1a-private
+  - us-east-1b-private
+  - us-east-1c-private
+  nodeLabels:
+    kops.k8s.io/instancegroup: nodes
