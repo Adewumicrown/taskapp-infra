@@ -9,59 +9,96 @@ echo "===================================="
 export KOPS_CLUSTER_NAME=taskapp.name.ng
 export KOPS_STATE_STORE=s3://taskapp-kops-state-311156639915-us-east-1
 export AWS_PROFILE=Taskapp-cluster-ops
+export AWS_REGION=us-east-1
 
 # Step 1: Terraform apply
 echo "[1/7] Rebuilding AWS infrastructure..."
 cd ~/taskapp-infra/terraform
+terraform init -reconfigure
 terraform apply -auto-approve
 
 # Step 2: Get new IDs
 echo "[2/7] Getting new subnet and NAT Gateway IDs..."
 VPC_ID=$(terraform output -raw vpc_id)
-PRIVATE_SUBNETS=($(terraform output -json private_subnet_ids | jq -r '.[]'))
-PUBLIC_SUBNETS=($(terraform output -json public_subnet_ids | jq -r '.[]'))
+PRIVATE_SUBNET_0=$(terraform output -json private_subnet_ids | jq -r '.[0]')
+PRIVATE_SUBNET_1=$(terraform output -json private_subnet_ids | jq -r '.[1]')
+PRIVATE_SUBNET_2=$(terraform output -json private_subnet_ids | jq -r '.[2]')
+PUBLIC_SUBNET_0=$(terraform output -json public_subnet_ids | jq -r '.[0]')
+PUBLIC_SUBNET_1=$(terraform output -json public_subnet_ids | jq -r '.[1]')
+PUBLIC_SUBNET_2=$(terraform output -json public_subnet_ids | jq -r '.[2]')
 
-NAT_INFO=$(aws ec2 describe-nat-gateways \
-  --region us-east-1 \
+# Wait for NAT Gateways to be available
+echo "Waiting for NAT Gateways to be available..."
+sleep 30
+
+# Get NAT Gateway IDs matched to their public subnets
+NAT_0=$(aws ec2 describe-nat-gateways \
+  --region $AWS_REGION \
   --profile Taskapp-cluster-ops \
   --filter "Name=state,Values=available" \
-  --query 'NatGateways[*].{ID:NatGatewayId,Subnet:SubnetId}' \
-  --output json)
+        "Name=subnet-id,Values=$PUBLIC_SUBNET_0" \
+  --query 'NatGateways[0].NatGatewayId' \
+  --output text)
 
-# Step 3: Update cluster.yaml with new IDs
-echo "[3/7] Updating cluster.yaml with new IDs..."
-python3 - << PYEOF
-import json
-import subprocess
+NAT_1=$(aws ec2 describe-nat-gateways \
+  --region $AWS_REGION \
+  --profile Taskapp-cluster-ops \
+  --filter "Name=state,Values=available" \
+        "Name=subnet-id,Values=$PUBLIC_SUBNET_1" \
+  --query 'NatGateways[0].NatGatewayId' \
+  --output text)
 
-# Get NAT gateway info
-nat_info = json.loads("""$NAT_INFO""")
-public_subnets = "${PUBLIC_SUBNETS[@]}".split()
-private_subnets = "${PRIVATE_SUBNETS[@]}".split()
+NAT_2=$(aws ec2 describe-nat-gateways \
+  --region $AWS_REGION \
+  --profile Taskapp-cluster-ops \
+  --filter "Name=state,Values=available" \
+        "Name=subnet-id,Values=$PUBLIC_SUBNET_2" \
+  --query 'NatGateways[0].NatGatewayId' \
+  --output text)
 
-# Map NAT gateways to AZs
-nat_map = {}
-for nat in nat_info:
-    subnet = nat['Subnet']
-    if subnet in public_subnets:
-        idx = public_subnets.index(subnet)
-        nat_map[idx] = nat['ID']
+echo "VPC: $VPC_ID"
+echo "Public subnets: $PUBLIC_SUBNET_0, $PUBLIC_SUBNET_1, $PUBLIC_SUBNET_2"
+echo "Private subnets: $PRIVATE_SUBNET_0, $PRIVATE_SUBNET_1, $PRIVATE_SUBNET_2"
+echo "NAT Gateways: $NAT_0, $NAT_1, $NAT_2"
 
-# Read cluster.yaml
-with open('/root/taskapp-infra/terraform/kops/cluster.yaml', 'r') as f:
+# Step 3: Automatically update cluster.yaml with new IDs
+echo "[3/7] Automatically updating cluster.yaml with new IDs..."
+python3 << PYEOF
+import re
+
+with open('/home/victor/taskapp-infra/terraform/kops/cluster.yaml', 'r') as f:
     content = f.read()
 
-# These will be replaced manually - print values for reference
-print("VPC ID:", "$VPC_ID")
-print("Public subnets:", public_subnets)
-print("Private subnets:", private_subnets)
-print("NAT mapping:", nat_map)
-PYEOF
+# Update VPC ID
+content = re.sub(r'networkID: vpc-\S+', 'networkID: $VPC_ID', content)
 
-echo ""
-echo "⚠️  Please update cluster.yaml manually with the above IDs"
-echo "    Then press ENTER to continue..."
-read
+# Update public subnets
+content = re.sub(
+    r'(name: us-east-1a-public\n    type: Public\n    zone: us-east-1a\n    id: )subnet-\S+',
+    r'\g<1>$PUBLIC_SUBNET_0', content)
+content = re.sub(
+    r'(name: us-east-1b-public\n    type: Public\n    zone: us-east-1b\n    id: )subnet-\S+',
+    r'\g<1>$PUBLIC_SUBNET_1', content)
+content = re.sub(
+    r'(name: us-east-1c-public\n    type: Public\n    zone: us-east-1c\n    id: )subnet-\S+',
+    r'\g<1>$PUBLIC_SUBNET_2', content)
+
+# Update private subnets with egress
+content = re.sub(
+    r'(name: us-east-1a-private\n    type: Private\n    zone: us-east-1a\n    id: )subnet-\S+(\n    egress: )nat-\S+',
+    r'\g<1>$PRIVATE_SUBNET_0\g<2>$NAT_0', content)
+content = re.sub(
+    r'(name: us-east-1b-private\n    type: Private\n    zone: us-east-1b\n    id: )subnet-\S+(\n    egress: )nat-\S+',
+    r'\g<1>$PRIVATE_SUBNET_1\g<2>$NAT_1', content)
+content = re.sub(
+    r'(name: us-east-1c-private\n    type: Private\n    zone: us-east-1c\n    id: )subnet-\S+(\n    egress: )nat-\S+',
+    r'\g<1>$PRIVATE_SUBNET_2\g<2>$NAT_2', content)
+
+with open('/home/victor/taskapp-infra/terraform/kops/cluster.yaml', 'w') as f:
+    f.write(content)
+
+print("cluster.yaml updated successfully!")
+PYEOF
 
 # Step 4: Recreate Kops cluster
 echo "[4/7] Creating Kops cluster..."
@@ -72,8 +109,8 @@ kops create secret sshpublickey admin \
 kops update cluster --name taskapp.name.ng --yes --admin
 
 # Step 5: Wait for cluster
-echo "[5/7] Waiting for cluster to be ready (this takes ~15 minutes)..."
-sleep 600
+echo "[5/7] Waiting for cluster to be ready (~15 minutes)..."
+sleep 500
 kops export kubeconfig --name taskapp.name.ng --admin
 kops validate cluster --wait 10m
 
@@ -95,16 +132,49 @@ helm install cert-manager jetstack/cert-manager \
   --create-namespace \
   --set crds.enabled=true
 
+# Wait for NGINX load balancer
 echo "Waiting for NGINX load balancer..."
-sleep 60
-ELB=$(kubectl get svc -n ingress-nginx ingress-nginx-controller \
-  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-echo "New ELB: $ELB"
+echo "This may take 2-3 minutes..."
+for i in {1..20}; do
+  ELB=$(kubectl get svc -n ingress-nginx ingress-nginx-controller \
+    -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || echo "")
+  if [ ! -z "$ELB" ] && [ "$ELB" != "null" ]; then
+    echo "Load balancer ready: $ELB"
+    break
+  fi
+  echo "Waiting... ($i/20)"
+  sleep 15
+done
 
-echo ""
-echo "⚠️  Update Route53 DNS records with new ELB: $ELB"
-echo "    Then press ENTER to continue..."
-read
+# Automatically update Route53 DNS records
+echo "Updating Route53 DNS records..."
+aws route53 change-resource-record-sets \
+  --profile Taskapp-cluster-ops \
+  --hosted-zone-id Z0925897Z02UN1WIO0T6 \
+  --change-batch "{
+    \"Changes\": [
+      {
+        \"Action\": \"UPSERT\",
+        \"ResourceRecordSet\": {
+          \"Name\": \"app.taskapp.name.ng\",
+          \"Type\": \"CNAME\",
+          \"TTL\": 300,
+          \"ResourceRecords\": [{\"Value\": \"$ELB\"}]
+        }
+      },
+      {
+        \"Action\": \"UPSERT\",
+        \"ResourceRecordSet\": {
+          \"Name\": \"backend.taskapp.name.ng\",
+          \"Type\": \"CNAME\",
+          \"TTL\": 300,
+          \"ResourceRecords\": [{\"Value\": \"$ELB\"}]
+        }
+      }
+    ]
+  }"
+
+echo "DNS records updated with: $ELB"
 
 # Step 7: Deploy application
 echo "[7/7] Deploying application..."
@@ -113,15 +183,20 @@ kubectl apply -f ~/taskapp-infra/k8s/base/secrets/secret.yaml
 kubectl apply -f ~/taskapp-infra/k8s/base/database/postgres.yaml
 
 echo "Waiting for database..."
-kubectl rollout status statefulset/postgres
+kubectl rollout status statefulset/postgres --timeout=120s
 
 kubectl apply -f ~/taskapp-infra/k8s/base/backend/deployment.yaml
 kubectl apply -f ~/taskapp-infra/k8s/base/frontend/deployment.yaml
 
-# Install cert-manager secret and ClusterIssuer
+# Install cert-manager credentials and ClusterIssuer
+cd ~/taskapp-infra/terraform
+ACCESS_KEY_ID=$(terraform output -raw cert_manager_access_key_id)
+SECRET_KEY=$(terraform output -raw cert_manager_secret_access_key)
+
 kubectl create secret generic route53-credentials \
   --namespace cert-manager \
-  --from-literal=secret-access-key="$(terraform output -raw cert_manager_secret_access_key)" \
+  --from-literal=access-key-id="$ACCESS_KEY_ID" \
+  --from-literal=secret-access-key="$SECRET_KEY" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl apply -f ~/taskapp-infra/k8s/base/cert-manager/clusterissuer.yaml
@@ -133,5 +208,6 @@ echo "✅ TaskApp is up and running!"
 echo "===================================="
 echo "Frontend: https://app.taskapp.name.ng"
 echo "Backend:  https://backend.taskapp.name.ng/api/health"
+echo "ELB:      $ELB"
 echo ""
 kubectl get pods

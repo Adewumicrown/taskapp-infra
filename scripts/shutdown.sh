@@ -11,7 +11,7 @@ echo "===================================="
 
 # Step 1: Delete Kops cluster
 echo "[1/5] Deleting Kops cluster..."
-kops delete cluster taskapp.name.ng --yes || echo "Cluster already deleted, continuing..."
+kops delete cluster --name taskapp.name.ng --yes || echo "Cluster already deleted, continuing..."
 
 # Step 2: Empty all S3 buckets
 echo "[2/5] Emptying S3 buckets..."
@@ -25,11 +25,6 @@ aws s3 rm s3://taskapp-kops-state-311156639915-us-east-1 \
 aws s3 rm s3://taskapp-etcd-backup-311156639915-us-east-1 \
   --recursive \
   --profile Taskapp-cluster-ops || echo "etcd backup bucket already empty"
-
-# Empty Terraform state bucket
-aws s3 rm s3://taskapp-terraform-state-victor-311156639915-us-east-1 \
-  --recursive \
-  --profile Taskapp-cluster-ops || echo "Terraform state bucket already empty"
 
 # Step 3: Disable prevent_destroy on S3 buckets
 echo "[3/5] Disabling prevent_destroy on S3 buckets..."
