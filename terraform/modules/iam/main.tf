@@ -68,3 +68,25 @@ resource "aws_iam_instance_profile" "worker_node" {
   name = "${var.project_name}-worker-profile"
   role = aws_iam_role.worker_node.name
 }
+
+resource "aws_iam_user" "cert_manager" {
+  name = "${var.project_name}-cert-manager"
+  tags = {
+    Project = var.project_name
+  }
+}
+
+resource "aws_iam_policy" "cert_manager_route53" {
+  name        = "${var.project_name}-cert-manager-route53"
+  description = "Allows cert-manager to manage Route53 records for SSL"
+  policy      = data.aws_iam_policy_document.cert_manager_route53.json
+}
+
+resource "aws_iam_user_policy_attachment" "cert_manager" {
+  user       = aws_iam_user.cert_manager.name
+  policy_arn = aws_iam_policy.cert_manager_route53.arn
+}
+
+resource "aws_iam_access_key" "cert_manager" {
+  user = aws_iam_user.cert_manager.name
+}

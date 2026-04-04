@@ -17,3 +17,12 @@ output "worker_instance_profile_name" {
   description = "Name of the worker node instance profile"
   value       = aws_iam_instance_profile.worker_node.name
 }
+
+output "cert_manager_access_key_id" {
+  value = aws_iam_access_key.cert_manager.id
+}
+
+output "cert_manager_secret_access_key" {
+  value     = aws_iam_access_key.cert_manager.secret
+  sensitive = true
+}

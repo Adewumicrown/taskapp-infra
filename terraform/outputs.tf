@@ -52,3 +52,12 @@ output "etcd_backup_bucket" {
   description = "etcd backup bucket name"
   value       = module.s3.etcd_backup_bucket
 }
+
+output "cert_manager_access_key_id" {
+  value = module.iam.cert_manager_access_key_id
+}
+
+output "cert_manager_secret_access_key" {
+  value     = module.iam.cert_manager_secret_access_key
+  sensitive = true
+}

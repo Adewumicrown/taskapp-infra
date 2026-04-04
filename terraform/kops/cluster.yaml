@@ -8,7 +8,7 @@ spec:
   cloudProvider: aws
 
   # Network configuration
-  networkID: vpc-0b52f6dfdfe2982a0
+  networkID: vpc-0b49756084bfd7c3d
   networkCIDR: 10.0.0.0/16
   nonMasqueradeCIDR: 100.64.0.0/10
 
@@ -46,35 +46,35 @@ spec:
   - name: us-east-1a-public
     type: Public
     zone: us-east-1a
-    id: subnet-07116207b77043a60
+    id: subnet-0776d858ff6329ebe
 
   - name: us-east-1b-public
     type: Public
     zone: us-east-1b
-    id: subnet-09ec72057dc757120
+    id: subnet-05029150ee4e29698
 
   - name: us-east-1c-public
     type: Public
     zone: us-east-1c
-    id: subnet-0a32f6290cd5024a8
+    id: subnet-052c91682808f189b
 
   - name: us-east-1a-private
     type: Private
     zone: us-east-1a
-    id: subnet-0f7ee583eaab9a541
-    egress: nat-02092b3156e422724
+    id: subnet-0fa4d47d776be07bf
+    egress: nat-098995c47ba1b5858
 
   - name: us-east-1b-private
     type: Private
     zone: us-east-1b
-    id: subnet-05141e6713b17316a
-    egress: nat-001d4db68ac43a385
+    id: subnet-021ac11eec4f9839e
+    egress: nat-0a5b362ff4c99d56a
 
   - name: us-east-1c-private
     type: Private
     zone: us-east-1c
-    id: subnet-050d9932b5748a50e
-    egress: nat-0ed8ed9a67a7d86a7
+    id: subnet-014658e4085c93c87
+    egress: nat-04b90eff559b10044
 
   # etcd configuration with S3 backups
   etcdClusters:

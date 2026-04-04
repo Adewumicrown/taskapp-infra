@@ -18,3 +18,8 @@ secrets/
 # OS
 .DS_Store
 *.swp
+
+# Never commit secrets
+*.secret
+.env*
+scripts/*.key

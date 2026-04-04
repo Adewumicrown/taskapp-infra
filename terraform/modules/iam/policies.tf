@@ -196,3 +196,18 @@ data "aws_iam_policy_document" "ec2_assume_role" {
     }
   }
 }
+
+data "aws_iam_policy_document" "cert_manager_route53" {
+  statement {
+    sid    = "CertManagerRoute53"
+    effect = "Allow"
+    actions = [
+      "route53:GetChange",
+      "route53:ChangeResourceRecordSets",
+      "route53:ListResourceRecordSets",
+      "route53:ListHostedZonesByName",
+      "route53:ListHostedZones",
+    ]
+    resources = ["*"]
+  }
+}

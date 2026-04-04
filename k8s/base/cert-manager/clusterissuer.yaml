@@ -12,5 +12,10 @@ spec:
     - dns01:
         route53:
           region: us-east-1
-          # Uses node IAM instance profile automatically
-          # No credentials needed
+          hostedZoneID: Z0925897Z02UN1WIO0T6
+          accessKeyIDSecretRef:
+            name: route53-credentials
+            key: access-key-id
+          secretAccessKeySecretRef:
+            name: route53-credentials
+            key: secret-access-key
