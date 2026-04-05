@@ -6,7 +6,7 @@ resource "aws_s3_bucket" "kops_state" {
   # Prevent accidental deletion of this bucket
   # Your cluster depends on it being available at all times
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true
   }
 
   tags = {
@@ -50,7 +50,7 @@ resource "aws_s3_bucket" "etcd_backup" {
   bucket = "${var.project_name}-etcd-backup-${var.aws_account_id}-${var.aws_region}"
 
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true
   }
 
   tags = {

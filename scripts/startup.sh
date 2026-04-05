@@ -14,7 +14,7 @@ export AWS_REGION=us-east-1
 # Step 1: Terraform apply
 echo "[1/7] Rebuilding AWS infrastructure..."
 cd ~/taskapp-infra/terraform
-terraform init -reconfigure
+terraform init
 terraform apply -auto-approve
 
 # Step 2: Get new IDs
