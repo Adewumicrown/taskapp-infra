@@ -30,6 +30,10 @@ resource "aws_subnet" "public" {
   # Instances launched here get a public IP automatically
   map_public_ip_on_launch = true
 
+  lifecycle {
+    ignore_changes = [tags]
+  }
+
   tags = {
     Name                     = "${var.project_name}-public-${var.availability_zones[count.index]}"
     Project                  = var.project_name
@@ -48,6 +52,10 @@ resource "aws_subnet" "private" {
 
   # No public IPs — nodes stay private
   map_public_ip_on_launch = false
+
+  lifecycle {
+    ignore_changes = [tags]
+  }
 
   tags = {
     Name                              = "${var.project_name}-private-${var.availability_zones[count.index]}"
